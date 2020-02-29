@@ -1,0 +1,413 @@
+---
+title: "Student Loads"
+author: "Sarah"
+date: '2020-02-29'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r Setup, include=FALSE, results='hide', warning=FALSE}
+    library(knitr)
+    opts_chunk$set(fig.path="figures\\",
+                   cache.path="cache\\",
+                   cache=FALSE,
+                   echo=TRUE,
+                   message=FALSE,
+                   warning=FALSE) 
+    library(ggplot2)
+    library(ggthemes)
+    library(dplyr)
+    library(tidyr)
+    library(scales)
+    library(RColorBrewer)
+    #devtools::install_github("ropensci/plotly")
+    library(plotly)
+    library(plotly)
+    library(DT)
+```
+
+
+```{r Load Data}
+d <- read.table("data\\survey_SCF.txt", header = TRUE, sep = ",")
+```
+
+# 1. Debt over time
+
+## Did student debt become more important over time?
+
+```{r}
+d_eduloan_income <- d %>% 
+  select(YEAR, INCOME, EDN_INST) %>%
+  group_by(YEAR) %>%
+  summarise(income=mean(INCOME), eduLoan=mean(EDN_INST), borrower=sum(EDN_INST!=0)) %>%
+  mutate(eduLoanPercent=eduLoan/income)
+```
+
+```{r}
+p_loans <- ggplot(d_eduloan_income) +
+  geom_bar(aes(x=YEAR, y=eduLoan), stat = "identity", alpha=0.9) +
+  geom_text(data = d_eduloan_income, 
+            aes(YEAR, eduLoan, label=dollar(eduLoan, accuracy=1)), 
+            vjust = 1.3, size = 3.5, color="white") +
+  
+  geom_line(aes(x=YEAR, y=borrower), size=1.5, alpha=0.5, color="steelblue3") + 
+  
+  annotate("text", x=1989, y=7000, label="- number of borrowers", size=3, color="steelblue3") +
+  geom_label(aes(x = 1995.5, y = 7000, label = "average student loans"), 
+             size=3, fill="grey40", color="white", label.r=unit(0, "lines")) +
+  
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) + 
+  scale_y_continuous(breaks = seq(0,6000,by=1000)) +
+  
+  labs(title = "Number of Borrowers and Average Student Loans \nhas Shown a Upward Trend for 27 Years",
+     subtitle = "Number of households with student loans and average student loans (in 2016 dollars) from 1989 to 2016",
+     caption = "Source: Survey of Consumer Finances, conducted every three years from 1989",
+     y="Teeth length") +  
+  theme_hc() +
+  theme(plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.grid = element_line(color="steelblue3"))
+
+p_loans
+```
+
+```{r}
+p_ratio <- ggplot(d_eduloan_income, aes(x=YEAR, y=eduLoanPercent, color=(YEAR>=2007))) + 
+  geom_rect(aes(xmin=2007, xmax=Inf, ymin=-Inf, ymax=Inf),
+            fill = "lightskyblue2", alpha = 0.03, linetype="blank") +
+  geom_line(aes(group=1), alpha=0.5, size=2) +
+  geom_point(aes(group=1), size=3.5) +
+  scale_color_manual(values=c("black", "steelblue3")) + 
+  
+  labs(title = "Student Loans to Income Ratio Witnessed a Steep Increase since 2007",
+       subtitle = "Ratio of student loans to total income from 1989 to 2016",
+       caption = "Source: Survey of Consumer Finances, conducted every three years from 1989") + 
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) + 
+  theme_hc() + 
+  theme(legend.position="none", 
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank())
+
+p_ratio 
+```
+
+## How did student loan debt compare to other types of debt (car loans, mortgage, credit card, etc.)?
+
+```{r}
+loan_category <- d %>% 
+  select(YEAR, 
+         "mortgages"=NH_MORT, 
+         "other lines of credit"=OTHLOC, 
+         "credit card"=CCBAL, 
+         "installment loans"=INSTALL, 
+         "education loans"=EDN_INST, 
+         "vehicle loans"=VEH_INST) %>%
+  group_by(YEAR) %>%
+  summarise_all(mean) %>%
+  pivot_longer(-YEAR, names_to = "category", values_to = "value")
+
+
+loan_category$category = factor(loan_category$category, levels=c("mortgages",
+                                                                 "installment loans",
+                                                                 "other lines of credit",
+                                                                 "vehicle loans",
+                                                                 "education loans",
+                                                                 "credit card"))
+
+```
+
+```{r}
+ann_text <- data.frame(YEAR = 1991, value = 170000,lab = "Text",
+                       category = factor("mortgages", levels = c("mortgages",
+                                                          "installment loans",
+                                                          "other lines of credit",
+                                                          "vehicle loans",        
+                                                          "education loans",
+                                                          "credit card")))
+
+p_loan_year <- ggplot(loan_category, aes(x=YEAR, y=value, color=(category=="education loans"))) + 
+  geom_line() +
+  geom_point() +
+  facet_grid(cols=vars(category)) + 
+  scale_y_continuous(breaks = seq(0, 150000, by = 50000), labels=dollar) + 
+  scale_color_manual(values=c("black", "dodgerblue4")) +
+  geom_rect(data = subset(loan_category, category=="education loans"), 
+            xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf, 
+            fill = "lightskyblue2", alpha = 0.03, linetype="blank") +
+  geom_text(data = ann_text, 
+            label = "Year: \n                                      89 92 95 98 01 04 07 10 13 16", 
+            size=1.73) +
+  
+  labs(title = "Compared to Other Loans, Student Loans remain Relatively Low",
+       subtitle = "Average value of different loans (in 2016 dollars) from 1989 to 2016",
+       caption = "Source: Survey of Consumer Finances, conducted every three years from 1989",
+       x = "", y = "") + 
+  
+  theme_hc() +
+  theme(legend.position="none",
+        panel.spacing = unit(0.2, "lines"), 
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        strip.text.x = element_text(size = 8.5),
+        strip.background = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p_loan_year
+```
+
+# 2. Tell me who you are
+
+```{r}
+d16 <- d %>% 
+  filter(YEAR==2016 & EDN_INST!=0) # remove people with no edu loan
+
+d16$degree[d16$EDUC %in% seq(-1,7)] <- "below high school"
+d16$degree[d16$EDUC %in% c(8, 9)] <- "below college"
+d16$degree[d16$EDUC %in% c(10,11,12)] <- "college"
+d16$degree[d16$EDUC %in% c(13,14)] <- "above college"
+
+d16$degree <- factor(d16$degree, 
+                     levels = c("below high school", "below college", "college", "above college"))
+
+#d16$RACE <- factor(d16$RACE)
+
+d16$birthYr <- 2016-d16$AGE
+d16$graduateAge <- recode(d16$EDUC, "-1"=0, "1"=10, "2"=12, "3"=14, "4"=15, "5"=16, "6"=17, "7"=18, "8"=18, "9"=18, "10"=22, "11"=22, "12"=22, "13"=24, "14"=27)
+d16$graduateYr <- d16$birthYr+d16$graduateAge
+d16$graduateYrC[d16$graduateYr<1970] <- 1
+d16$graduateYrC[d16$graduateYr<1980 & d16$graduateYr>=1970] <- 2
+d16$graduateYrC[d16$graduateYr<1990 & d16$graduateYr>=1980] <- 3
+d16$graduateYrC[d16$graduateYr<2000 & d16$graduateYr>=1990] <- 4
+d16$graduateYrC[d16$graduateYr<2010 & d16$graduateYr>=2000] <- 5
+d16$graduateYrC[d16$graduateYr<2020 & d16$graduateYr>=2010] <- 6
+```
+
+```{r}
+d16_degree <- d16 %>%
+  select(EDN_INST, degree)
+
+p_degree <- ggplot(d16_degree, aes(x=degree, y=EDN_INST)) +
+  geom_violin(linetype="blank", fill="lightskyblue2", alpha=0.3) +
+  geom_boxplot(width=0.1, color="grey", alpha=1) +
+  scale_y_continuous(trans='log10', labels = dollar, 
+                     breaks=c(0, 10, 100, 1000, 10000, 100000, 1000000, 1000000),
+                     expand=expand_scale(add = c(0, .4))) + 
+  
+  labs(title = "More Education = More Debt?",
+       subtitle = "Total reported education loans (in dollars) in 2016 by educational attainment, \namong those with education loan debt",
+       caption = "Source: Survey of Consumer Finances \n Note: A base-10 log scale is used for the y axis") + 
+  
+  theme_hc() +
+  theme(plot.subtitle=element_text(size=10, color="grey40", lineheight=.9, face="italic"), 
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank())
+
+p_degree
+```
+
+```{r}
+d16_graduateYr <- d16 %>%
+  select(EDN_INST, graduateYrC) %>%
+  group_by(graduateYrC) %>%
+  summarise(avgLoan=mean(EDN_INST)) %>%
+  mutate(id = seq.int(nrow(.)),
+         previous = lag(avgLoan, default = 0), 
+         change = avgLoan - previous, 
+         direction = ifelse(change > 0, "increase", "decrease")) %>%
+  select(id, graduateYrC, previous, avgLoan, change, direction)
+  
+d16_graduateYr[nrow(d16_graduateYr)+1,] <- list(nrow(d16_graduateYr)+1,
+                                                7, 
+                                                0, 
+                                                d16_graduateYr$avgLoan[nrow(d16_graduateYr)],
+                                                0,
+                                                "increase")
+
+d16_graduateYr$graduateYrC <- factor(d16_graduateYr$graduateYrC, 
+                                     levels=c(1,2,3,4,5,6,7), 
+                                     labels=c("1960s and before", "1970s", "1980s", "1990s", "2000s", "2010-2016","current"))
+
+
+p_graduate <- ggplot(d16_graduateYr, aes(fill=direction, x=id)) + 
+  geom_rect(aes(color=direction,
+                xmin=id-0.45, xmax=id+0.45, 
+                ymin=previous, ymax=avgLoan),
+            alpha=0.8,
+            linetype="blank") + 
+  geom_text(data = filter(d16_graduateYr, id %in% c(1,7)), 
+            aes(id, avgLoan, label=dollar(avgLoan, accuracy=1)), 
+            vjust = -0.4, size = 3) +
+  geom_text(data = filter(d16_graduateYr, !id %in% c(1,7), direction=="increase"), 
+            aes(id, avgLoan, label=comma(change, accuracy=1, prefix="+")), 
+            vjust = -0.4, size = 3) +
+  geom_text(data = filter(d16_graduateYr, !id %in% c(1,7), direction=="decrease"), 
+            aes(id, avgLoan, label=comma(change, accuracy=1)), 
+            vjust = 1, size = 3) +
+  scale_fill_manual(values=c("grey","lightskyblue2")) +
+  scale_y_continuous(labels = dollar) +
+  scale_x_continuous(breaks = 1:7, 
+                     labels = c("1960s and before", "1970s", "1980s", "1990s", "2000s", "2010-2016", "current")) + 
+  
+  
+  labs(title = "Graduates in 1970s and 2010s \nSurprised the Most by the Increased Student Loans",
+       subtitle = "Average reported student loans (in dollars) by graduation year, \namong those with student loan debt",
+       caption = "Source: Survey of Consumer Finances") + 
+  
+  theme_hc() +
+  theme(plot.subtitle=element_text(size=10, color="grey40", lineheight=.9, face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        #axis.ticks.x = element_blank(),
+        legend.position="none")
+
+p_graduate
+```
+
+# 3. Wealth and Income Distribution
+
+```{r}
+d16_income <- d16 %>% 
+  select(EDN_INST, INCCAT, degree) 
+
+d16_income$INCCAT <- factor(d16_income$INCCAT, 
+                            levels=c(1,2,3,4,5,6), 
+                            labels=c("0-20", "20-39.9", "40-59.9", "60-79.9", "80-89.9", "90-100"))
+
+p_income <- ggplot(d16_income, aes(x=INCCAT, y=EDN_INST, color=degree)) +
+  geom_jitter(size=1.5, width=0.2, height=0.1) +
+  scale_color_brewer("Blues") +
+  scale_y_continuous(trans='log10', labels = dollar, 
+                     breaks=c(0, 10, 100, 1000, 10000, 100000, 1000000, 1000000)) + 
+  scale_x_discrete("income percentile groups") + 
+  
+  labs(title = "Education Makes you Poor, Education Makes you Rich",
+       subtitle = "Reported student loans (in dollars) by income percentile groups in 2016, \nmarked by educational attainment",
+       caption = "Source: Survey of Consumer Finances \nNote: A base-10 log scale is used for the y axis") + 
+  
+  theme_hc() +
+  theme(plot.subtitle=element_text(size=10, color="grey40", lineheight=.9, face="italic"), 
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_text(size=10, color="grey40"),
+        axis.title.y=element_blank(),
+        legend.position="top",legend.justification='left',legend.box = "horizontal",
+        legend.title= element_blank())
+
+
+p_income
+```
+
+# 4. Going broke
+
+```{r}
+dbroke <- d %>%
+  filter(BNKRUPLAST5==1 | FORECLLAST5==1) # declared bankruptcy and/or faced foreclosure
+
+dbroke_loans <- dbroke %>% 
+  select(YEAR, 
+         "mortgages"=NH_MORT, 
+         "other lines of credit"=OTHLOC, 
+         "credit card"=CCBAL, 
+         "installment loans"=INSTALL, 
+         "education loans"=EDN_INST, 
+         "vehicle loans"=VEH_INST) %>%
+  group_by(YEAR) %>%
+  summarise_all(mean) %>%
+  pivot_longer(-YEAR, names_to = "category", values_to = "value") %>%
+  group_by(YEAR) %>%
+  mutate(rank = rank(-value))
+
+dbroke_loans$category = factor(dbroke_loans$category, ordered=TRUE, 
+                               levels=c("other lines of credit","credit card","vehicle loans","education loans","installment loans","mortgages"))
+
+p_broke <- ggplot(dbroke_loans, 
+       aes(x=YEAR, y=value, fill=category)) +
+  geom_bar(stat="identity", position = "dodge") +
+  scale_fill_manual(breaks=c("mortgages","installment loans","education loans",
+                             "vehicle loans","credit card","other lines of credit"), 
+                    values=c("grey", "grey", "grey", "lightskyblue2", "grey", "grey")) +
+  coord_flip() +
+  geom_text(data = filter(dbroke_loans, category=="education loans"&rank>3), 
+            aes(YEAR, value+6000, label=paste0(rank," of 6")), 
+            vjust=0.3, hjust=0, size = 3, color="steelblue3") +
+  geom_text(data = filter(dbroke_loans, category=="education loans"&rank<=3), 
+            aes(YEAR, value+3000, label=paste0(rank," of 6")), 
+            vjust = 0.3, hjust=0.1, size = 3, color="steelblue3") +
+ 
+  labs(title = "Is Student Loans the Straw that Broke the Camel's back?",
+       subtitle = "Rank of different debts by average value, \namong those declared bankruptcy or faced foreclosure in the past 5 years ",
+       caption = "Source: Survey of Consumer Finances, conducted every three years from 1989 \nDebt categories include mortgages, installment loans, student loans, vehicle loans, credit card, and others.") + 
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) + 
+  
+  theme_hc() + 
+  theme(legend.position="left", legend.justification="top",
+        legend.title=element_blank(),
+        legend.text=element_text(size=9, color="grey40"),
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank())
+  
+p_broke
+```
+
+
+```{r}
+dbroke_dummy <- d %>%
+  mutate(broke = if_else(BNKRUPLAST5==1|FORECLLAST5==1, 1, 0)) %>%
+  select(YEAR, broke, FOODHOME, FOODDELV, FOODAWAY) %>%
+  filter(YEAR > 2001) %>% # food-related data is not available for 2001 and before 
+  mutate(outShare=FOODAWAY/(FOODAWAY+FOODHOME+FOODDELV)) %>%
+  group_by(YEAR, broke) %>%
+  summarise(avgout=mean(outShare, na.rm = TRUE)) %>%
+  filter(YEAR==2004|YEAR==2016)
+
+dbroke_dummy$broke <- factor(dbroke_dummy$broke, 
+                             levels=c(0,1), 
+                             labels=c("financially stable", "bankruptcy/foreclosure"))
+
+p_food <- ggplot(dbroke_dummy, aes(x=YEAR, y=avgout, color=broke)) +
+  geom_line(alpha=0.7, size = 2) + 
+  geom_point(alpha=0.7, size = 4) +
+  geom_text(data = dbroke_dummy %>% filter(YEAR==2004), 
+            aes(label = broke), 
+            hjust = 1.1, vjust=-0.5,fontface = "bold", size = 4) +
+  geom_text(data = dbroke_dummy %>% filter(YEAR==2004), 
+            aes(label = percent(avgout)), 
+            hjust = 1.2, vjust=1,fontface = "bold", size = 4) +
+  geom_text(data = dbroke_dummy %>% filter(YEAR==2016), 
+            aes(label = percent(avgout)) , 
+            hjust = -0.5, 
+            fontface = "bold", 
+            size = 4) +
+  
+  ylim(0.2,0.33)+
+  scale_x_continuous(breaks=c(2004, 2016), expand=expand_scale(add = c(10, 10)))+
+  scale_color_manual(values=c("lightskyblue2", "dodgerblue4")) +
+  
+  labs(title = "Money Spent on Eating out Increases in Bankrupted Households",
+       subtitle = "Percentage of money spent on food away from home over all food expense in 2004 and 2016",
+       caption = "Source: Survey of Consumer Finances, conducted every three years from 1989") + 
+  
+  theme_hc() +
+  theme(legend.position="none",
+        axis.text.y=element_blank(),
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank())
+
+p_food
+  
+```
