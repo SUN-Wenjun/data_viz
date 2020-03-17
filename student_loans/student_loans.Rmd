@@ -11,23 +11,23 @@ output:
 ---
 
 ```{r Setup, include=FALSE, results='hide', warning=FALSE}
-    library(knitr)
-    opts_chunk$set(fig.path="figures\\",
-                   cache.path="cache\\",
-                   cache=FALSE,
-                   echo=TRUE,
-                   message=FALSE,
-                   warning=FALSE) 
-    library(ggplot2)
-    library(ggthemes)
-    library(dplyr)
-    library(tidyr)
-    library(scales)
-    library(RColorBrewer)
-    #devtools::install_github("ropensci/plotly")
-    library(plotly)
-    library(plotly)
-    library(DT)
+library(knitr)
+opts_chunk$set(fig.path="figures\\",
+               cache.path="cache\\",
+               cache=FALSE,
+               echo=TRUE,
+               message=FALSE,
+               warning=FALSE) 
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+library(tidyr)
+library(scales)
+library(RColorBrewer)
+#devtools::install_github("ropensci/plotly")
+library(plotly)
+library(plotly)
+library(DT)
 ```
 
 
