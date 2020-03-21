@@ -1,0 +1,196 @@
+---
+title: "fortune_500"
+author: "Sarah"
+date: "2020/3/18"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(fig.path="figures\\",
+               cache.path="cache\\",
+               cache=FALSE,
+               echo=TRUE,
+               message=FALSE,
+               warning=FALSE) 
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggthemes)
+```
+
+# Fortune 500 headquarters
+
+A map of where the Fortune 500 companies - that is the five hundred largest U.S. corporations by total revenue - have their headquarters. 
+## get Fortune 500 HQs addresses
+
+Get the addresses of Fortune 500 headquarter addresses from [Geography Realm](https://www.geographyrealm.com/map-and-list-of-fortune-1000-companies-for-2018/). 
+
+```{r}
+fortune <- read.csv("data/fortune1000.csv")
+names(fortune) <- c("latitude", "longitude", "company", "rank", "years_on_list", "city", "state")
+fortune <- fortune %>% filter(rank <= 500)
+```
+
+## Fortune 500 by state
+
+Aggregate the number of headquarters by state. Make a map in which the states are shaded by their number of Fortune 500 companies.
+
+```{r}
+library(openintro)
+fortune_by_state <- fortune %>% 
+  mutate(state_name = abbr2state(state)) %>% 
+  group_by(state_name, state) %>%
+  tally() 
+
+library(albersusa)
+state_fortune <- usa_sf("laea") %>%
+  left_join(fortune_by_state, c("name"="state_name"))
+```
+
+```{r}
+statesToLabel <- c("NY", "CA", "TX")
+
+ggplot(state_fortune) + 
+  geom_sf(aes(fill = n),
+          color = "gray95", size = 0.25, alpha = 0.9) +
+  scale_fill_gradient(low="darksalmon", high="brown4", na.value="gray80") + 
+  
+  geom_sf_text(aes(label = paste0(state,'\n',n)), 
+               data = filter(state_fortune, state %in% statesToLabel),
+               color = "white", size = 3, lineheight = .75, fontface = "bold") + 
+  
+  labs(title = "NY, CA, & TX: States with the most Fortune 500 company headquarters",
+       subtitle = "Number of Fortune 500 company headquarters by state in 2018",
+       caption = "Source: Geography Realm") + 
+  
+  theme_map() +
+  
+  theme(
+    legend.position="right", 
+    legend.title=element_blank(),
+    plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+    plot.caption=element_text(size=7, color="grey40")
+    )
+```
+
+```{r}
+library(statebins)
+
+c(0, 1, 10, 20, 40, 60)
+
+state_fortune <- state_fortune %>% 
+  mutate(cnt_group = case_when(
+    is.na(n) ~ "0",
+    n < 10 ~ "< 10",
+    n >=10 & n <20 ~ "10-20",
+    n >=20 & n <40 ~ "20-40",
+    n >=40 ~ "> 40"
+  )) 
+
+state_fortune$cnt_group <- factor(state_fortune$cnt_group, levels = c("> 40","20-40","10-20","< 10","0"))
+
+
+statebins(state_fortune, state_col = "name", value_col = "cnt_group", 
+          #palette = "YlOrBr", direction=1,
+          ggplot2_scale_function = scale_fill_manual,
+          values = c("#993404","#d95f0e","#fe9929","#fed98e","#ffffd4"),
+          round=TRUE,
+          name = ""
+          ) +
+  labs(title = "Number of Fortune 500 company headquarters by state in 2018") +
+  theme_statebins(
+    legend_position = "right"
+    )
+
+```
+
+
+```{r}
+library(leaflet)
+library(geojsonio)
+
+states <- geojsonio::geojson_read("data/gz_2010_us_040_00_500k.json", what = "sp")
+states@data <- states@data %>% 
+  left_join(fortune_by_state, by = c("NAME"="state_name")) %>%
+  replace_na(list(n=0))
+  
+bins <- c(0, 1, 10, 20, 40, 60)
+pal <- colorBin("YlOrBr", domain = state_fortune$n, bins = bins)
+
+popupcontent <- sprintf("<strong>%s</strong><br/>%s",
+                        states@data$NAME,
+                        ifelse(is.na(states@data$n),"",paste(states@data$n, "headquarters"))
+                        ) %>%
+    lapply(htmltools::HTML)
+
+m <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  setView(lng = -99.8421, lat = 39.3647, zoom = 3) %>%
+  addPolygons(
+    fillColor = ~pal(n),
+    stroke = FALSE, 
+    smoothFactor = 0.5, 
+    fillOpacity = 0.7,
+    label = popupcontent,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "13px", 
+      direction = "auto"
+      )
+    ) %>%
+  addPopups(
+    lng = -73.9855, lat = 42.7580,  
+    paste("NY has", states@data %>% filter(NAME == "New York") %>% select(n) %>% as.numeric(),"Fortune500 headquarters"),
+    options = popupOptions(closeButton = FALSE)
+  ) %>%
+  addLegend(colors = c("#993404","#d95f0e","#fe9929","#fed98e","#ffffd4"),
+            labels = c("> 40","20-40","10-20","< 10","none"),
+            opacity = 0.7, title = NULL,  position = "bottomright")
+
+m
+
+#library(htmlwidgets)
+#saveWidget(widget = m,
+#           file = "fortune500_by_state.html",
+#           selfcontained = TRUE)
+```
+
+## Is there evidence of companies being headquartered in low tax states? 
+
+We also got some info on top corporate income tax rates by state. Import sheet 2 of the file `State_Corporate_Income_Tax_Rates_2015.xlsx` and make a map shaded by top corporate income tax rates. 
+
+```{r}
+library("readxl")
+corptax <- read_excel("data\\State_Corporate_Income_Tax_Rates_2015.xlsx", sheet = "topcorptax") 
+```
+
+```{r}
+states <- geojsonio::geojson_read("data/gz_2010_us_040_00_500k.json", what = "sp")
+states@data <- states@data %>% 
+  left_join(fortune_by_state, by = c("NAME"="state_name")) %>%
+  replace_na(list(n=0))
+
+```
+
+1. Make a scatter plot with a loess function estimating the relationship between corporate income tax rates (x-axis) and # of headquarters (y-axis). 
+2. What happens if we account for state population (i.e use HQs per capita)? Import the data on state populations from Wikipedia: https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population. Use the function `readHTMLTable()` from the package `XML` to import the data and merge it on. Re-do the scatter plot from part 1. 
+
+
+
+
+
+```{r}
+
+```
+
+## 
+1. Geocode the locations of all headuarters in the sample. Add the locations of the headquarters as points to the map from part 2 (U.S. state map shaded by top corporate income tax rates).
+2. Add a label with the company names. Use ggrepel() if the labels overlap too much.
+3. Size the points by the ranking on the Fortune 500 list (we don't have revenue here, so the rank will have to do). 
