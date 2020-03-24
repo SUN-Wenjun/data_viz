@@ -324,15 +324,94 @@ leaflet(states, options = leafletOptions(minZoom = 3)) %>%
 
 ```
 
-1. Make a scatter plot with a loess function estimating the relationship between corporate income tax rates (x-axis) and # of headquarters (y-axis). 
-2. What happens if we account for state population (i.e use HQs per capita)? Import the data on state populations from Wikipedia: https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population. Use the function `readHTMLTable()` from the package `XML` to import the data and merge it on. Re-do the scatter plot from part 1. 
+A scatter plot estimating the relationship between corporate income tax rates and number of headquarters.
 
+```{r}
+tax_hq <- corptax %>%
+  left_join(fortune_by_state, by = c("state"="state_name")) %>%
+  select(state, topcorpinctax, n) %>%
+  replace_na(list(n = 0))
+```
 
+```{r}
+ggplot(tax_hq, aes(x = topcorpinctax, y = n)) +
+  geom_point() + 
+  #geom_smooth(method="loess" , color="gray50", fill="wheat", se=T, alpha = 0.3) +
+  geom_text(data = tax_hq %>% filter(state %in% c("New York", "California", "Texas", "Iowa")),
+            aes(label = state),
+            hjust = 0, nudge_x = 0.001) + 
+  
+  scale_x_continuous(labels = scales::percent) + 
+  ylim(0, NA) +
+  
+  labs(title = "No evidence of companies being headquartered in low tax states",
+       subtitle = "Top corporate income tax rate and number of Fortune 500 headquarters",
+       caption = "Year: 2018") + 
+  xlab("top corporate income tax rate") + 
+  ylab("number of headquarters") + 
+  
+  theme_hc() +
+  theme(legend.position="none", 
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_text(size=10, color="grey40"),
+        axis.title.y=element_text(size=10, color="grey40"))
+```
 
+## use HQs per capita instead
+
+Account for state population ...
+
+Import population data (estimate, July 2019) on state populations from [Wikipedia](https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population)
 
 
 ```{r}
+library(rvest)
 
+url <- "https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population"
+
+state_population <- url %>%
+  html() %>%
+  html_node("table") %>%
+  html_table(fill = TRUE)
+
+state_population <- state_population[, 3:4]
+  
+state_population <- state_population %>%
+  slice(2:n()) %>%
+  select(state = State, population = "Census population") %>%
+  mutate(population = as.numeric(gsub(",","",population))) %>%
+  right_join(corptax) %>%
+  left_join(fortune_by_state, by = c("state"="state_name")) %>%
+  replace_na(list(n=0)) %>%
+  select(state, population, topcorpinctax, n) %>%
+  mutate(hq.per.capita = n/population*1000000) # number of HQs per million people
+```
+
+```{r}
+ggplot(state_population, aes(x = topcorpinctax, y = hq.per.capita)) +
+  geom_point() + 
+  #geom_smooth(method="loess" , color="gray50", fill="wheat", se=T, alpha = 0.3) +
+  geom_text(data = state_population %>% filter(state %in% c("New York", "California", "Texas", "Iowa")),
+            aes(label = state),
+            hjust = 0, nudge_x = 0.001, 
+            color = "gray60") + 
+  
+  scale_x_continuous(labels = scales::percent) + 
+  ylim(0,NA) +
+  
+  labs(title = "No evidence of companies being headquartered in low tax states",
+       subtitle = "Top corporate income tax rate and number of Fortune 500 headquarters per million people",
+       caption = "Year: 2018") + 
+  xlab("top corporate income tax rate") + 
+  ylab("number of headquarters per million people") + 
+  
+  theme_hc() +
+  theme(legend.position="none", 
+        plot.subtitle=element_text(size=10, color="grey40", face="italic"),
+        plot.caption=element_text(size=7, color="grey40"),
+        axis.title.x=element_text(size=10, color="grey40"),
+        axis.title.y=element_text(size=10, color="grey40"))
 ```
 
 ## 
