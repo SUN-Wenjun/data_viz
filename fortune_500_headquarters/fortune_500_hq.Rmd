@@ -1,11 +1,11 @@
 ---
-title: "fortune_500"
+title: "Fortune 500 headquarters"
 author: "Sarah"
 date: "2020/3/18"
 output:
   html_document:
     df_print: paged
-    code_folding: hide
+    code_folding: show
     fig_width: 8
     fig_height: 6
 ---
@@ -25,10 +25,9 @@ library(ggplot2)
 library(ggthemes)
 ```
 
-# Fortune 500 headquarters
+Maps of where the Fortune 500 companies - that is the five hundred largest U.S. corporations by total revenue - have their headquarters and how HQ loactions are related to state tax rate. 
 
-A map of where the Fortune 500 companies - that is the five hundred largest U.S. corporations by total revenue - have their headquarters. 
-## get Fortune 500 HQs addresses
+### get Fortune 500 HQs addresses
 
 Get the addresses of Fortune 500 headquarter addresses from [Geography Realm](https://www.geographyrealm.com/map-and-list-of-fortune-1000-companies-for-2018/). 
 
@@ -38,7 +37,7 @@ names(fortune) <- c("latitude", "longitude", "company", "rank", "years_on_list",
 fortune <- fortune %>% filter(rank <= 500)
 ```
 
-## Fortune 500 by state
+## Fortune 500 Companies by State
 
 Aggregate the number of headquarters by state. Make a map in which the states are shaded by their number of Fortune 500 companies.
 
@@ -53,6 +52,8 @@ library(albersusa)
 state_fortune <- usa_sf("laea") %>%
   left_join(fortune_by_state, c("name"="state_name"))
 ```
+
+### A choropleth map made with ggplot2. 
 
 ```{r}
 statesToLabel <- c("NY", "CA", "TX")
@@ -80,10 +81,10 @@ ggplot(state_fortune) +
     )
 ```
 
+### A Cartogram heatmap using "statebins" package. 
+
 ```{r}
 library(statebins)
-
-c(0, 1, 10, 20, 40, 60)
 
 state_fortune <- state_fortune %>% 
   mutate(cnt_group = case_when(
@@ -111,6 +112,7 @@ statebins(state_fortune, state_col = "name", value_col = "cnt_group",
 
 ```
 
+### Use Leaflet for R to create an interactive map. 
 
 ```{r}
 library(leaflet)
@@ -150,6 +152,7 @@ m <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
     paste("NY has", states@data %>% filter(NAME == "New York") %>% select(n) %>% as.numeric(),"Fortune500 headquarters"),
     options = popupOptions(closeButton = FALSE)
   ) %>%
+  addControl("Number of Fortune 500 Company Headquarters", position = "topright") %>%
   addLegend(colors = c("#993404","#d95f0e","#fe9929","#fed98e","#ffffd4"),
             labels = c("> 40","20-40","10-20","< 10","none"),
             opacity = 0.7, title = NULL,  position = "bottomright")
@@ -164,7 +167,7 @@ m
 
 ## Is there evidence of companies being headquartered in low tax states? 
 
-A map shaded by top corporate income tax rates. 
+Download [state corporate income tax rates](https://taxfoundation.org/state-corporate-income-tax-rates-brackets-2018/) and extract top tax rate at each state. Merge to `sp` data. 
 
 ```{r extract top corp income tax rate, eval=FALSE}
 read_excel("data\\state_corporate_income_tax_rates_2018.xlsx", sheet = "Sheet1") %>%
@@ -182,6 +185,10 @@ states <- geojsonio::geojson_read("data/gz_2010_us_040_00_500k.json", what = "sp
 states@data <- states@data %>% 
   left_join(corptax, by = c("NAME"="state"))
 ```
+
+### An interactive map shaded by top corporate income tax rates.
+
+Thanks to [@mpriem89](https://github.com/rstudio/leaflet/issues/256) for creating the `addLegend_decreasing` function that enables order legend decreasingly.  
 
 ```{r}
 pal <- colorNumeric(palette = "YlOrBr", domain = corptax$topcorpinctax)
@@ -311,6 +318,7 @@ leaflet(states, options = leafletOptions(minZoom = 3)) %>%
       direction = "auto"
       )
     ) %>%
+  addControl("State Top Corporate Income Tax Rates", position = "topright") %>%
   addLegend_decreasing(pal = pal, 
                        values = ~topcorpinctax, 
                        position = "bottomright", 
@@ -324,7 +332,7 @@ leaflet(states, options = leafletOptions(minZoom = 3)) %>%
 
 ```
 
-A scatter plot estimating the relationship between corporate income tax rates and number of headquarters.
+### A scatter plot estimating the relationship between corporate income tax rates and number of headquarters.
 
 ```{r}
 tax_hq <- corptax %>%
@@ -358,11 +366,11 @@ ggplot(tax_hq, aes(x = topcorpinctax, y = n)) +
         axis.title.y=element_text(size=10, color="grey40"))
 ```
 
-## use HQs per capita instead
+### use HQs per capita instead
 
-Account for state population ...
+To account for state population, calculate number of HQs per 1000,000 people. 
 
-Import population data (estimate, July 2019) on state populations from [Wikipedia](https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population)
+Population data (estimate, July 2019) on state populations is imported from [Wikipedia](https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population). 
 
 
 ```{r}
@@ -387,6 +395,8 @@ state_population <- state_population %>%
   select(state, population, topcorpinctax, n) %>%
   mutate(hq.per.capita = n/population*1000000) # number of HQs per million people
 ```
+
+### re-plot the previous scatter plot with HQs per capita data
 
 ```{r}
 ggplot(state_population, aes(x = topcorpinctax, y = hq.per.capita)) +
@@ -414,7 +424,69 @@ ggplot(state_population, aes(x = topcorpinctax, y = hq.per.capita)) +
         axis.title.y=element_text(size=10, color="grey40"))
 ```
 
-## 
-1. Geocode the locations of all headuarters in the sample. Add the locations of the headquarters as points to the map from part 2 (U.S. state map shaded by top corporate income tax rates).
-2. Add a label with the company names. Use ggrepel() if the labels overlap too much.
-3. Size the points by the ranking on the Fortune 500 list (we don't have revenue here, so the rank will have to do). 
+## map locations of headquarters
+
+Add locations of all headquarters to the state map shaded by tax rates. Size the points by the ranking on the Fortune 500 list.
+
+```{r}
+states <- geojsonio::geojson_read("data/gz_2010_us_040_00_500k.json", what = "sp")
+states@data <- states@data %>% 
+  left_join(corptax, by = c("NAME"="state"))
+```
+
+```{r}
+pal <- colorNumeric(palette = "YlOrBr", domain = corptax$topcorpinctax)
+
+popupPolygons <- sprintf(
+  "<strong>%s</strong><br/>%s",
+  states@data$NAME,
+  paste0("Top Corp Income Tax: ",round(states@data$topcorpinctax*100,2),"%")
+                        ) %>% 
+  lapply(htmltools::HTML)
+
+fortune <- fortune %>%
+  left_join(corptax %>% mutate(state_abb = state2abbr(state)), by = c("state"="state_abb"))
+
+popupCircle <- sprintf(
+  "<strong>%s</strong><br/>%s<br/>%s<br/>%s",
+  fortune$company,
+  paste0("Rank: ",fortune$rank),
+  paste0(fortune$city,", ",fortune$state),
+  paste0("Top Corp Income Tax: ",round(fortune$topcorpinctax*100,2),"%")
+) %>% 
+  lapply(htmltools::HTML)
+
+leaflet(states, options = leafletOptions(minZoom = 3)) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  setView(lng = -99.8421, lat = 39.3647, zoom = 3) %>%
+  addPolygons(
+    fillColor = ~pal(topcorpinctax),
+    stroke = FALSE, 
+    smoothFactor = 0.5, 
+    fillOpacity = 0.7,
+    label = popupPolygons
+    ) %>%
+  addCircleMarkers(
+    lng = fortune$longitude, lat = fortune$latitude,
+    radius = 20/fortune$rank,
+    color = "#00A4CC",
+    stroke = FALSE, fillOpacity = 0.5,
+    label = popupCircle
+  ) %>%
+  addControl("Fortune 500 HQs and State Top Corporate Income Tax Rates", position = "topright") %>%
+  addLegend_decreasing(pal = pal, 
+                       values = ~topcorpinctax, 
+                       position = "bottomright", 
+                       title = "Tax Rate",
+                       opacity = 1,
+                       decreasing = TRUE,
+                       labFormat = labelFormat(
+                       transform = function(x) 100 * x,
+                       suffix = "%")) 
+
+```
+
+
+
+
+
