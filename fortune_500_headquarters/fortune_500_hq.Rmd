@@ -132,7 +132,7 @@ popupcontent <- sprintf("<strong>%s</strong><br/>%s",
                         ) %>%
     lapply(htmltools::HTML)
 
-m <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
+m1 <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   setView(lng = -99.8421, lat = 39.3647, zoom = 3) %>%
   addPolygons(
@@ -157,12 +157,14 @@ m <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
             labels = c("> 40","20-40","10-20","< 10","none"),
             opacity = 0.7, title = NULL,  position = "bottomright")
 
-m
+m1
+```
 
-#library(htmlwidgets)
-#saveWidget(widget = m,
-#           file = "fortune500_by_state.html",
-#           selfcontained = TRUE)
+```{r}
+library(htmlwidgets)
+saveWidget(widget = m1,
+           file = "fortune500_by_state.html",
+           selfcontained = TRUE)
 ```
 
 ## Is there evidence of companies being headquartered in low tax states? 
@@ -170,6 +172,7 @@ m
 Download [state corporate income tax rates](https://taxfoundation.org/state-corporate-income-tax-rates-brackets-2018/) and extract top tax rate at each state. Merge to `sp` data. 
 
 ```{r extract top corp income tax rate, eval=FALSE}
+library("readxl")
 read_excel("data\\state_corporate_income_tax_rates_2018.xlsx", sheet = "Sheet1") %>%
   select(State, Rates) %>%
   group_by(State) %>%
@@ -303,7 +306,7 @@ addLegend_decreasing <- function (map, position = c("topright", "bottomright", "
 	invokeMethod(map, data, "addLegend", legend)
 }
 
-leaflet(states, options = leafletOptions(minZoom = 3)) %>%
+m2 <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   setView(lng = -99.8421, lat = 39.3647, zoom = 3) %>%
   addPolygons(
@@ -329,7 +332,13 @@ leaflet(states, options = leafletOptions(minZoom = 3)) %>%
                        transform = function(x) 100 * x,
                        suffix = "%"))
 
+m2
+```
 
+```{r}
+saveWidget(widget = m2,
+           file = "corptax_by_state.html",
+           selfcontained = TRUE)
 ```
 
 ### A scatter plot estimating the relationship between corporate income tax rates and number of headquarters.
@@ -456,7 +465,7 @@ popupCircle <- sprintf(
 ) %>% 
   lapply(htmltools::HTML)
 
-leaflet(states, options = leafletOptions(minZoom = 3)) %>%
+m3 <- leaflet(states, options = leafletOptions(minZoom = 3)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   setView(lng = -99.8421, lat = 39.3647, zoom = 3) %>%
   addPolygons(
@@ -484,9 +493,14 @@ leaflet(states, options = leafletOptions(minZoom = 3)) %>%
                        transform = function(x) 100 * x,
                        suffix = "%")) 
 
+m3
 ```
 
-
+```{r}
+saveWidget(widget = m3,
+           file = "corptax_hq.html",
+           selfcontained = TRUE)
+```
 
 
 

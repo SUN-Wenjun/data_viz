@@ -3,3 +3,6 @@ student_loans/data/survey_SCF.txt
 *.csv
 *.xlsx
 fortune_500_headquarters/data/gz_2010_us_040_00_500k.json
+fortune_500_headquarters/.RData
+fortune_500_headquarters/.RData
+fortune_500_headquarters/.Rhistory
