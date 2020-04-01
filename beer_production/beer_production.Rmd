@@ -1,0 +1,144 @@
+---
+title: "TidyTuesday 2020W14"
+author: "Wenjun"
+date: "2020/3/31"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: show
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r Setup, include=FALSE, results='hide', warning=FALSE}
+library(knitr)
+opts_chunk$set(fig.path="figures\\",
+               cache.path="cache\\",
+               cache=FALSE,
+               echo=TRUE,
+               message=FALSE,
+               warning=FALSE) 
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+```
+
+# Beer Production 
+
+## state rank {.tabset .tabset-fade}
+
+### data
+
+
+```{r Get the data, results='hide', warning=FALSE}
+brewing_materials <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-31/brewing_materials.csv')
+beer_taxed <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-31/beer_taxed.csv')
+brewer_size <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-31/brewer_size.csv')
+beer_states <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-31/beer_states.csv')
+```
+
+```{r}
+state_rank <- beer_states %>%
+  filter((type == "On Premises") & !is.na(barrels) & state != "total") %>%
+  group_by(year) %>%
+  arrange(year, desc(barrels)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+state_increase <- state_rank %>%
+  mutate(year = paste0("y", year)) %>%
+  select(state, year, rank) %>%
+  pivot_wider(names_from = year, values_from = rank) %>%
+  mutate(increase = y2019 < y2008) %>%
+  select(state, increase) 
+
+state_beer_rank <- state_rank %>%
+  left_join(state_increase, by = "state")
+```
+
+```{r include=FALSE, results='hide', warning=FALSE}
+state_rank %>%
+  mutate(year = paste0("y", year)) %>%
+  select(state, year, rank) %>%
+  pivot_wider(names_from = year, values_from = rank) %>%
+  mutate(increase2015 = y2014 > y2015, increase15 = y2014-y2015) %>%
+  filter(increase2015) %>%
+  arrange(desc(increase15)) %>%
+  select(state, y2014, y2015, increase15) 
+```
+
+### plot 
+
+```{r}
+interesting_state <- c("TX", "FL", "GA", "AL")
+
+ggplot() +
+  
+  geom_line(data = state_beer_rank %>% filter(! state %in% interesting_state), 
+            aes(x = year, y = rank, group = state), 
+            size = 1, color = "grey80") +
+  
+  geom_line(data = state_beer_rank %>% filter(state %in% interesting_state), 
+            aes(x = year, y = rank, group = state), 
+            size = 1, color = "goldenrod2") +
+  
+  geom_text(data = state_beer_rank %>% filter((!state %in% interesting_state) & (year == 2019)),
+            aes(x = 2019, y = rank, label = state), 
+            hjust = -0.2,
+            fontface = "bold", color = "grey80", size = 2) +
+  geom_text(data = state_beer_rank %>% filter((state %in% interesting_state) & (year == 2019)),
+            aes(x = 2019, y = rank, label = paste(rank, state)),
+            hjust = -0.2, 
+            fontface = "bold", color = "goldenrod2", size = 2) +
+  geom_text(data = state_beer_rank %>% filter((state %in% interesting_state) & (year == 2008)),
+            aes(x = 2008, y = rank, label = paste(rank, state)),
+            hjust = 1.2, 
+            fontface = "bold", color = "goldenrod2", size = 2) +
+
+  
+  labs(title = "Several States Surged in Beer Production Ranking in 2015", 
+       subtitle = "State barrels production ranking over the years. \nLots of changes in beer production ranking since 2014. /nTX, FL, GA, and AL witnessed a great surge in 2015.", 
+       caption = paste(c("Source: Alcohol and Tobacco Tax and Trade Bureau",
+                       "TidyTuesday 2020W14",
+                       "github.com/SUN-Wenjun"),
+                       collapse = "\n")
+       ) + 
+  
+  scale_y_reverse(breaks = 1:nrow(state_beer_rank)) +
+  scale_x_continuous(breaks = 2008:2019, expand = c(.05, .05)) +
+  
+  theme(
+    plot.background = element_rect(fill = "white"), 
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = 8),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.subtitle=element_text(size=10, color="grey60", face="italic"),
+    plot.caption=element_text(size=8, color="grey60"),
+  )
+```
+
+
+```{r eval = FALSE}
+ggsave(
+  "final_plot_beer_production_rank.png",
+  device = png(),
+  width = 15,
+  height = 25,
+  units = "cm",
+  dpi = 300,
+)
+```
+
+
+
+
+
+
+
+
