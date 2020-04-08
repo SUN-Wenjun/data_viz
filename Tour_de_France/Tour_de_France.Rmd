@@ -44,7 +44,7 @@ stage <- tdf_stages %>%
   mutate(year = year(ymd(Date))) %>%
   mutate(Type = tolower(Type)) %>%
   mutate(Type = case_when(Type %in% c("flat stage", "flat cobblestone stage", "plain stage", "plain stage with cobblestones") ~ "Flat", 
-                          Type %in% c("medium mountain stage", "high mountain stage", "mountain stage", "hilly stage", "stage with mountain(s)", "stage with mountain", "mountain time trial") ~ "Mountain", 
+                          Type %in% c("medium mountain stage", "high mountain stage", "mountain stage", "hilly stage", "stage with mountain(s)", "stage with mountain") ~ "Mountain", 
                           TRUE ~ "Other")) %>%
   filter(Type %in% c("Mountain", "Flat")) %>%
   group_by(year, Type) %>%
@@ -109,7 +109,7 @@ ggplot(stage,
   geom_area(alpha = 0.8) + 
   
   scale_fill_manual(values=c("#d9bf77", "#2b580c")) + 
-  scale_x_continuous(breaks = c(1903, 1920, 1940, 1960, 1980, 2000, 2017)) +
+  scale_x_continuous(breaks = c(1903, 1920, 1927, 1940, 1960, 1980, 2000, 2017)) +
   scale_y_continuous(expand = c(0, 0)) +
   
   labs(title = "Distances covers on mountain stages and flat stages") + 
@@ -124,24 +124,47 @@ ggplot(stage,
   )
 ```
 
+```{r}
+tdf_stages %>%
+  mutate(year = year(ymd(Date))) %>%
+  mutate(Type = tolower(Type)) %>%
+  mutate(Type = case_when(Type %in% c("flat stage", "flat cobblestone stage", "plain stage", "plain stage with cobblestones") ~ "Flat", 
+                          Type %in% c("medium mountain stage", "high mountain stage", "mountain stage", "hilly stage", "stage with mountain(s)", "stage with mountain") ~ "Mountain", 
+                          TRUE ~ Type)) %>%
+  group_by(year, Type) %>%
+  summarise(sumDistance = sum(Distance)) %>%
+  mutate(percentage = sumDistance/sum(sumDistance)) %>%
+  filter(year %in% c(1927, 2000, 2010))
+```
+
 ### include other types of stages
 
-```{r plot include other types of stage}
+```{r}
 stage2 <- tdf_stages %>%
   mutate(year = year(ymd(Date))) %>%
   mutate(Type = tolower(Type)) %>%
   mutate(Type = case_when(Type %in% c("flat stage", "flat cobblestone stage", "plain stage", "plain stage with cobblestones") ~ "Flat", 
                           Type %in% c("medium mountain stage", "high mountain stage", "mountain stage", "hilly stage", "stage with mountain(s)", "stage with mountain", "mountain time trial") ~ "Mountain", 
+                          Type == "team time trial" ~ "Team Time Trial",
+                          Type == "individual time trial" ~ "Individual Time Trial",
                           TRUE ~ "Other")) %>%
   group_by(year, Type) %>%
   summarise(sumDistance = sum(Distance)) %>%
+  pivot_wider(names_from = Type, values_from = sumDistance) %>%
+  replace_na(list("Team Time Trial" = 0, "Individual Time Trial" = 0, "Other" = 0)) %>%
+  pivot_longer(cols = c("Flat", "Mountain", "Team Time Trial", "Individual Time Trial", "Other"),
+               names_to = "Type", 
+               values_to = "sumDistance") %>%
   mutate(percentage = sumDistance/sum(sumDistance))
+```
 
+```{r}
+stage2$Type <- factor(stage2$Type, levels = c("Flat", "Mountain", "Team Time Trial", "Individual Time Trial", "Other"))
 
 ggplot(stage2, aes(x=year, y=sumDistance, fill = Type)) +
 geom_area() + 
 
-scale_fill_manual(values=c("#d9bf77", "#2b580c", "#8db1ab")) + 
+scale_fill_manual(values=c("#d9bf77", "#2b580c", "#e08f62", "#a35638", "#9dab86")) + 
 scale_x_continuous(breaks = c(1903, 1920, 1927, 1940, 1960, 1980, 2000, 2017)) +
 scale_y_continuous(expand = c(0, 0)) +
 
@@ -157,5 +180,6 @@ theme(
 )
 
 ```
+
 
 
