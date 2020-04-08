@@ -52,7 +52,9 @@ stage <- tdf_stages %>%
   mutate(percentage = sumDistance/sum(sumDistance))
 ```
 
-## Plot
+## Plot {.tabset .tabset-fade .tabset-pills}
+
+### proportion
 
 ```{r plot proportion}
 stage$Type <- factor(stage$Type, levels = c("Flat", "Mountain"))
@@ -99,6 +101,8 @@ ggplot(stage,
   )
 ```
 
+### absolute value of distance
+
 ```{r plot distance}
 ggplot(stage, 
        aes(x=year, y=sumDistance, fill = Type)) +
@@ -119,6 +123,8 @@ ggplot(stage,
     legend.title = element_blank()
   )
 ```
+
+### include other types of stages
 
 ```{r plot include other types of stage}
 stage2 <- tdf_stages %>%
