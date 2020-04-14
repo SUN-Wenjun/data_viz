@@ -1,0 +1,55 @@
+---
+title: "TidyTuesday 2020W16"
+author: "Wenjun"
+date: "2020/4/14"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: show
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r Setup, include=FALSE, results='hide', warning=FALSE}
+library(knitr)
+opts_chunk$set(fig.path="figures\\",
+               cache.path="cache\\",
+               cache=FALSE,
+               echo=TRUE,
+               message=FALSE,
+               warning=FALSE) 
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+```
+
+# The best hip-hop songs {.tabset .tabset-fade}
+
+## Get the data
+
+```{r}
+polls <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/polls.csv')
+rankings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/rankings.csv')
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
