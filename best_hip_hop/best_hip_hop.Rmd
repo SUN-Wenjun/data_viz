@@ -30,20 +30,169 @@ library(ggthemes)
 ## Get the data
 
 ```{r}
-polls <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/polls.csv')
+#polls <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/polls.csv')
 rankings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/rankings.csv')
+```
 
+```{r}
+#install.packages("geniusr")
+library(geniusr) # Credit to Ewen Henderson (https://CRAN.R-project.org/package=geniusr)
+#library(tidytext)
+library(tm)
+library(qdap)
+
+# songs by female rappers 
+song_female <- rankings %>% 
+  filter(gender == "female")
+
+df_female <- data.frame(line = character(),
+                        section_name = character(), 
+                        section_artist = character(), 
+                        song_name = character(), 
+                        artist_name = character())
+
+for (i in 1:nrow(song_female)) {
+    title <- song_female[i, "title"]
+    artist  <- song_female[i, "artist"]
+
+    df <- get_lyrics_search(artist_name = artist, song_title = title)
+    
+    df_female <- rbind(df_female, df)
+}
+
+
+length(unique(df_female$song_name))
+
+juicy <- get_lyrics_search(artist_name = "The Notorious B.I.G.",
+                  song_title = "Juicy")
+
+lyrics <- juicy %>%
+  mutate(doc_id = 1) %>%
+  select(doc_id, text = line)
+
+lyrics_source <- DataframeSource(lyrics)
+lyrics_corpus <- VCorpus(lyrics_source)
+
+clean_corpus <- function(corpus) {
+  # text cleaning
+  ## I kept abbreviations and contractions, because it's rap!
+  corpus <- corpus %>%
+    tm_map(content_transformer(tolower)) %>%
+    tm_map(content_transformer(bracketX)) %>%
+    tm_map(stripWhitespace) 
+  return(corpus)
+}
+
+lyrics_corpus <- clean_corpus(lyrics_corpus)
+
+
+# have a peek at the corpus
+peek <- c()
+for(i in 1:length(lyrics_corpus)) {
+  row <- unlist(lyrics_corpus[i])["content.content"]
+  peek <- rbind(peek, row)
+}
+peek
+```
+
+```{r}
+library(genius)
+
+song_female <- rankings %>% 
+  filter(gender == "female") %>%
+  select(artist, title)
+
+song_lyrics_female <- song_female %>% 
+  add_genius(artist, title, type = "lyrics")
+# 7 "Not Found (HTTP 404)." warning generated
+
+# These are the songs that we don't found using package genius
+female_missing <- song_lyrics_female %>%
+  group_by(artist, title) %>%
+  summarise(cnt = n()) %>%
+  right_join(song_female, by = c("artist", "title")) %>%
+  filter(is.na(cnt)) 
+
+female_manual <- data.frame(line = character(),
+                        section_name = character(), 
+                        section_artist = character(), 
+                        song_name = character(), 
+                        artist_name = character())
+
+for (i in 1:nrow(female_missing)) {
+    title <- female_missing[i, "title"]
+    artist  <- female_missing[i, "artist"]
+    
+    df <- data.frame(line = character(),
+                        section_name = character(), 
+                        section_artist = character(), 
+                        song_name = character(), 
+                        artist_name = character())
+    
+    try(df <- get_lyrics_search(artist_name = artist, song_title = title))
+    
+    female_manual <- rbind(female_manual, df)
+}
+
+female_manual %>%
+  group_by(section_artist, song_name) %>%
+  summarise(cnt = n())
+
+# 4 left
 ```
 
 
+```{r}
+song_male <- rankings %>% 
+  filter(gender == "male") %>%
+  select(artist, title)
 
+song_lyrics_male <- song_male %>% 
+  add_genius(artist, title, type = "lyrics")
 
+# These are the songs that we didn't found using package genius
+male_missing <- song_lyrics_male %>%
+  group_by(artist, title) %>%
+  summarise(cnt = n()) %>%
+  right_join(song_male, by = c("artist", "title")) %>%
+  filter(is.na(cnt)) 
+# 91 in total 
 
+male_manual <- data.frame(line = character(),
+                        section_name = character(), 
+                        section_artist = character(), 
+                        song_name = character(), 
+                        artist_name = character())
 
+for (i in 1:nrow(male_missing)) {
+    title <- male_missing[i, "title"]
+    artist  <- male_missing[i, "artist"]
+    
+    df <- data.frame(line = character(),
+                        section_name = character(), 
+                        section_artist = character(), 
+                        song_name = character(), 
+                        artist_name = character())
+    
+    try(df <- get_lyrics_search(artist_name = artist, song_title = title))
+    
+    male_manual <- rbind(male_manual, df)
+}
 
+male_manual %>%
+  group_by(section_artist, song_name) %>%
+  summarise(cnt = n()) # 69 songs are found 
 
+# 91-69=22 left
+```
 
+```{r}
+save(song_lyrics_female, file = "song_lyrics_female.RData")
+save(female_manual, file = "female_manual.RData")
+save(song_lyrics_male, file = "song_lyrics_male.RData")
+save(male_manual, file = "male_manual.RData")
 
+```
 
 
 
