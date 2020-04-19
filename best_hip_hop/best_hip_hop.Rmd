@@ -23,6 +23,13 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
+#library(stringr)
+#library(genius)
+#library(geniusr)
+library(tm)
+library(tidytext)
+library(ggwordcloud)
+library(ggtext)
 ```
 
 # The best hip-hop songs {.tabset .tabset-fade}
@@ -30,81 +37,29 @@ library(ggthemes)
 ## Get the data
 
 ```{r}
-#polls <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/polls.csv')
 rankings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/rankings.csv')
 ```
 
-```{r}
-#install.packages("geniusr")
-library(geniusr) # Credit to Ewen Henderson (https://CRAN.R-project.org/package=geniusr)
-#library(tidytext)
-library(tm)
-library(qdap)
+Some songs put featuring in the 'artist' column, which makes it difficult to search its lyrics, so they are removed here. 
 
-# songs by female rappers 
-song_female <- rankings %>% 
-  filter(gender == "female")
-
-df_female <- data.frame(line = character(),
-                        section_name = character(), 
-                        section_artist = character(), 
-                        song_name = character(), 
-                        artist_name = character())
-
-for (i in 1:nrow(song_female)) {
-    title <- song_female[i, "title"]
-    artist  <- song_female[i, "artist"]
-
-    df <- get_lyrics_search(artist_name = artist, song_title = title)
-    
-    df_female <- rbind(df_female, df)
-}
-
-
-length(unique(df_female$song_name))
-
-juicy <- get_lyrics_search(artist_name = "The Notorious B.I.G.",
-                  song_title = "Juicy")
-
-lyrics <- juicy %>%
-  mutate(doc_id = 1) %>%
-  select(doc_id, text = line)
-
-lyrics_source <- DataframeSource(lyrics)
-lyrics_corpus <- VCorpus(lyrics_source)
-
-clean_corpus <- function(corpus) {
-  # text cleaning
-  ## I kept abbreviations and contractions, because it's rap!
-  corpus <- corpus %>%
-    tm_map(content_transformer(tolower)) %>%
-    tm_map(content_transformer(bracketX)) %>%
-    tm_map(stripWhitespace) 
-  return(corpus)
-}
-
-lyrics_corpus <- clean_corpus(lyrics_corpus)
-
-
-# have a peek at the corpus
-peek <- c()
-for(i in 1:length(lyrics_corpus)) {
-  row <- unlist(lyrics_corpus[i])["content.content"]
-  peek <- rbind(peek, row)
-}
-peek
+```{r eval=FALSE}
+library(stringr)
+rankings <- rankings %>%
+  mutate(artist = str_replace(artist, "(.*)ft\\..*$", "\\1"))
 ```
 
-```{r}
+To get lyrics, first use package `genius`, then use package `geniusr`. 
+
+```{r eval=FALSE}
 library(genius)
+library(geniusr)
 
 song_female <- rankings %>% 
   filter(gender == "female") %>%
-  select(artist, title)
+  dplyr::select(artist, title)
 
 song_lyrics_female <- song_female %>% 
   add_genius(artist, title, type = "lyrics")
-# 7 "Not Found (HTTP 404)." warning generated
 
 # These are the songs that we don't found using package genius
 female_missing <- song_lyrics_female %>%
@@ -133,30 +88,21 @@ for (i in 1:nrow(female_missing)) {
     
     female_manual <- rbind(female_manual, df)
 }
-
-female_manual %>%
-  group_by(section_artist, song_name) %>%
-  summarise(cnt = n())
-
-# 4 left
 ```
 
-
-```{r}
+```{r eval=FALSE}
 song_male <- rankings %>% 
   filter(gender == "male") %>%
-  select(artist, title)
+  dplyr::select(artist, title)
 
 song_lyrics_male <- song_male %>% 
   add_genius(artist, title, type = "lyrics")
 
-# These are the songs that we didn't found using package genius
 male_missing <- song_lyrics_male %>%
   group_by(artist, title) %>%
   summarise(cnt = n()) %>%
   right_join(song_male, by = c("artist", "title")) %>%
   filter(is.na(cnt)) 
-# 91 in total 
 
 male_manual <- data.frame(line = character(),
                         section_name = character(), 
@@ -179,26 +125,151 @@ for (i in 1:nrow(male_missing)) {
     male_manual <- rbind(male_manual, df)
 }
 
-male_manual %>%
-  group_by(section_artist, song_name) %>%
-  summarise(cnt = n()) # 69 songs are found 
-
-# 91-69=22 left
 ```
 
-```{r}
+```{r eval=FALSE}
 save(song_lyrics_female, file = "song_lyrics_female.RData")
 save(female_manual, file = "female_manual.RData")
 save(song_lyrics_male, file = "song_lyrics_male.RData")
 save(male_manual, file = "male_manual.RData")
-
 ```
 
+```{r}
+load("song_lyrics_female.RData")
+load("female_manual.RData")
+load("song_lyrics_male.RData")
+load("male_manual.RData")
+```
+
+Combine them ...
+
+```{r}
+female_combined <- female_manual %>%
+  dplyr::select(artist = artist_name, title = song_name, line) %>%
+  rbind(song_lyrics_female %>% dplyr::select(artist, title, line = lyric))
+male_combined <- male_manual %>%
+  dplyr::select(artist = artist_name, title = song_name, line) %>%
+  rbind(song_lyrics_male %>% dplyr::select(artist, title, line = lyric))
+```
+
+Some songs are still missing ... what are they?
+
+```{r}
+rankings %>%
+  filter(gender == "female") %>%
+  dplyr::select(title, artist) %>%
+  filter(!title %in% female_combined$title) 
+
+rankings %>%
+  filter(gender == "male") %>%
+  dplyr::select(title, artist) %>%
+  filter(!title %in% male_combined$title)
+```
+
+Manually get their lyrics, merge them to the main dataframes. 
+
+```{r}
+# female
+file <- list.files(path="data\\female\\", pattern = "*.txt", full.names = TRUE)
+file_name <- list.files(path="data\\female\\", pattern = "*.txt", full.names = FALSE)
+line <- lapply(file, readLines) 
+file_name <- unlist(mapply(rep, file_name, sapply(line,length), SIMPLIFY=FALSE, USE.NAMES=FALSE))
+
+female <- data.frame(file = file_name,line = unlist(line)) %>%
+  mutate(file = gsub(".txt", "", file)) %>%
+  dplyr::select(title = file, line) %>%
+  rbind(female_combined %>% dplyr::select(title, line)) %>%
+  mutate(doc_id = "female") %>%
+  dplyr::select(doc_id, text = line)
+
+# male
+file <- list.files(path="data\\male\\", pattern = "*.txt", full.names = TRUE)
+file_name <- list.files(path="data\\male\\", pattern = "*.txt", full.names = FALSE)
+line <- lapply(file, readLines) 
+file_name <- unlist(mapply(rep, file_name, sapply(line,length), SIMPLIFY=FALSE, USE.NAMES=FALSE))
+
+male <- data.frame(file = file_name,line = unlist(line)) %>%
+  mutate(file = gsub(".txt", "", file)) %>%
+  dplyr::select(title = file, line) %>%
+  rbind(male_combined %>% dplyr::select(title, line)) %>%
+  mutate(doc_id = "male") %>%
+  dplyr::select(doc_id, text = line)
+```
+
+## Preprocess
+
+```{r}
+library(tm)
+library(tidytext)
+
+compare <- rbind(female, male)
+compare_source <- DataframeSource(compare)
+compare_corpus <- VCorpus(compare_source)
+
+myStopWords <- c("will", "get", "can", "got", "just")
+
+clean_corpus <- function(corpus) {
+  corpus <- corpus %>%
+    tm_map(stripWhitespace) %>% 
+    tm_map(removeNumbers) %>% 
+    tm_map(content_transformer(function(x,pattern) gsub("[,!?\\.]+","", x))) %>%
+    tm_map(content_transformer(tolower)) %>%
+    tm_map(removeWords, c(stopwords("english"), myStopWords)) %>%
+    tm_map(stripWhitespace) 
+  return(corpus)
+}
+
+compare_corpus <- clean_corpus(compare_corpus)
+```
+
+## Visualization
+
+```{r}
+library(ggwordcloud)
+library(ggtext)
+
+compare_terms <- DocumentTermMatrix(compare_corpus) %>%
+  tidy() 
+compare_terms[compare_terms$term=="niggas", "term"] <- "nigga"
+compare_terms_summary <- compare_terms %>%
+  group_by(document, term) %>%
+  summarise(cnt = sum(count)) %>%
+  #filter(cnt > 50)
+  filter((cnt > 30 & document == "female") | (cnt > 70 & document == "male") ) # because there are way more songs from male rappers, I set a higher bar of being "frequent" for terms in male rapper's song. 
 
 
-
-
-
-
-
-
+set.seed(4536)
+ggplot(compare_terms_summary,
+       aes(label = term, size = cnt, x = document, color = document)) +
+  geom_text_wordcloud_area(rm_outside = TRUE) +
+  
+  labs(
+  title = "<b><span style = 'color:#ea9085;'>She Raps</span>, <span style = 'color:#512b58;'>He Raps</span></b>",
+  subtitle = "In 2019, BBC Music asked 108 critics from 15 countries for their five favorite hip-hop tracks. Below is a wordcloud of the top frequent words from <span style = 'color:#ea9085;'>female rappers</span> and <span style = 'color:#512b58;'>male rappers</span>.",
+  caption = "@Wenjun_SUN_\n#TidyTuesday2020W16\nSource:http://www.bbc.com/culture/story/20191007-the-greatest-hip-hop-songs-of-all-time-who-voted\nNote: This wordcloud contains language that may offend some readers."
+  ) + 
+  
+  scale_size_area(max_size = 18) +
+  scale_x_discrete(breaks = NULL) +
+  scale_color_manual(values=c("#ea9085", "#512b58")) + 
+  
+  
+  theme_minimal() + 
+  
+  theme(
+    axis.title.x = element_blank(),
+    
+    plot.caption=element_text(size=7, color="grey40"),
+    plot.title = element_textbox_simple(
+      size = 15,
+      lineheight = 1,
+      padding = margin(5.5, 5.5, 0, 5.5)
+      ),
+    plot.subtitle = element_textbox_simple(
+      size = 10,
+      lineheight = 0.9,
+      padding = margin(5.5, 5.5, 5.5, 5.5),
+      margin = margin(0, 0, 5.5, 0)
+      )  
+  )
+```
