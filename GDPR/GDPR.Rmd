@@ -46,7 +46,7 @@ gdpr_violations[str_detect(gdpr_violations$controller, "Google"),]$controller <-
 
 google_fine <- gdpr_violations %>%
   filter(controller == "Google") %>%
-  summarise(total = sum(price)/1000000*1.18) %>% # in million, in US dollar
+  summarise(total = sum(price)/1000000*1.12) %>% # in million, in US dollar
   as.numeric()
 ```
 
@@ -81,8 +81,8 @@ ggplot(df, aes(fill = parts, values = vals)) +
   coord_equal() +
   
   labs(
-    title = "<b><span style = 'font-size:14pt'><span style = 'color:#DB4437'>$67 Million Is A Lot, </span>But Probably Not For Google</b>",
-    subtitle = "<span style = 'color:#333333'>Google is fined $67 million in total under Europe’s General Data Protection Regulation (GDPR), \nbut this is just less than <span style = 'color:#DB4437'>0.2%</span> of its net income in 2019.</span>",
+    title = "<b><span style = 'font-size:14pt'><span style = 'color:#DB4437'>$63 Million Is A Lot, </span>But Probably Not For Google</b>",
+    subtitle = "<span style = 'color:#333333'>Google is fined $63 million in total under Europe’s General Data Protection Regulation (GDPR), \nbut this is just less than <span style = 'color:#DB4437'>0.2%</span> of its net income ($34,343 million) in 2019.</span>",
     caption = "@Wenjun_SUN_\n#TidyTuesday2020W17\nSource:https://www.privacyaffairs.com/gdpr-fines/ & https://abc.xyz/investor/static/pdf/2019Q4_alphabet_earnings_release.pdf\nNote: The net income already includes a loss of $1,697 million for European Commission fines."  
     ) + 
   
