@@ -1,0 +1,141 @@
+---
+title: "TidyTuesday 2020W17"
+author: "Wenjun"
+date: "2020/4/21"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: show
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r Setup, include=FALSE, results='hide', warning=FALSE}
+library(knitr)
+opts_chunk$set(fig.path="figures\\",
+               cache.path="cache\\",
+               cache=FALSE,
+               echo=TRUE,
+               message=FALSE,
+               warning=FALSE) 
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+#library(stringr)
+#library(tm)
+#library(tidytext)
+#library(ggwordcloud)
+#library(ggtext)
+```
+
+# Keep Calm and Comply with GDPR {.tabset .tabset-fade}
+
+## Get the data
+
+```{r}
+gdpr_violations <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-21/gdpr_violations.tsv')
+
+```
+
+## Prepare the data
+
+```{r}
+#less1m_sum <- gdpr_violations %>%
+#  filter(price < 1000000) %>%
+#  summarize(sum(price)) %>%
+#  as.numeric()
+
+fines <- gdpr_violations %>%
+  mutate(controller = ifelse(controller=="Google Inc.", "Google", controller)) %>% # Google has two different names in the data 
+  #mutate(parent = case_when(controller == "Google" ~ "Google",
+  #                         (price > 1000000 & controller != "Google") ~ "more than 1M", 
+  #                          TRUE ~ "less than 1M")) %>%
+  mutate(parent = ifelse(controller == "Google", "Google", "Others")) %>%
+  select(parent, controller, price)
+```
+
+## Visualize 
+
+```{r}
+library(waffle)
+
+parts <- c(
+  `GDPR Fine\n($57M)` = 57,
+  `Revenue\n($136,819M)` = 136819-57
+)
+
+waffle(
+  parts/57, rows = 40, size = 0.5, legend_pos = "top",
+  colors = c("#DB4437", "#e6e6e6")
+)
+
+```
+
+
+
+
+
+
+```{r}
+library(treemap)
+library(d3treeR)
+
+p <- treemap(fines,
+             index = c("parent","controller"),
+             vSize = "price",
+             type = "index",
+             title = "GDPR Fines",
+             border.lwds = 0,
+             palette = "Set2",
+             bg.labels=c("white"),
+             align.labels=list(
+              c("center", "center"), 
+              c("right", "bottom")
+            )  
+          )  
+
+# make it interactive ("rootname" becomes the title of the plot):
+inter <- d3tree2( p ,  rootname = "General" )
+
+library(htmlwidgets)
+saveWidget(inter, file=paste0( getwd(), "/interactiveTreemap.html"))
+
+
+```
+
+```{r}
+group <- c(rep("Google fines",2),rep("Google net income",1))
+subgroup <- c("Google fine 1", "Google fine 2", "income")
+value <- c(50000000, 7000000, 30736000000)
+data <- data.frame(group,subgroup,value)
+ 
+# basic treemap
+p <- treemap(data,
+            index=c("group","subgroup"),
+            vSize="value",
+            type="index",
+            palette = "Set2",
+            bg.labels=c("white"),
+            align.labels=list(
+              c("center", "center"), 
+              c("right", "bottom")
+            )  
+          )  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
